@@ -4,16 +4,27 @@ function usage {
     echo "Usage: uzbl-session COMMAND [NAME]
 Control the current uzbl session.
 
-  -r, --restore     Restore the session NAME or the current session
-  -s, --save        Save the session to session NAME or the current session
-  -w, --wait        Wait for all browser instances to terminate
-  -t, --set         Select a session to use as the current one
-  -d, --delete      Delete a session
+  The commands are:
+  save              Save the session to the current session file (or create a new one)
+  delete            Delete a session file
+  restore           Restore a session from a session file
+  kill              Terminate the current session
+
+  -k, --kill        Terminate the current session (as part of save)
+  -d, --delete      Delete a session (e.g., after restoring)
   -v, --verbose     Enable verbose output
   -h, --help        display this help and exit"
 }
 
-source ${XDG_DATA_HOME:-$HOME/.local/share}/uzbl/scripts/session-manager/session_defines
+session_browser="uzbl-browser -u"
+
+uzbl_dir=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl
+script_dir=$uzbl_dir/scripts/session-manager
+mkdir -p $script_dir 2> /dev/null
+[[ $? != "0" ]] && { echo "No data directory" >&2; exit 1; }
+session_file=$uzbl_dir/session.txt
+session_dir=$uzbl_dir/sessions/
+unset uzbl_dir
 
 # If session file isn't a symlink, back it up
 if [ -f $session_file ] && [ ! -h $session_file ]; then
@@ -27,7 +38,6 @@ if [ -f $session_file ] && [ ! -h $session_file ]; then
 fi
 
 function set_session {
-    echo "Choosing $1" >&2
     case $1 in
         ''|'--')
             echo "No session chosen; choosing current" >&2
@@ -56,90 +66,78 @@ function find_uzbl_instances {
     pgrep uzbl-core
 }
 
-SAVE=0
-RESTORE=0
-WAIT=0
-SET=0
-DELETE=0
+KILL=0
 VERBOSE=0
+ACTION=$1 ; shift 1
 
-TEMP=$( getopt -o r:s:t:wvh -l restore:,save:,set:,wait,verbose,help -n 'uzbl-session' -- "$@" )
+TEMP=$( getopt -o s:wvh -l session:,kill,verbose,help -n 'uzbl-session' -- "$@" )
 eval set -- "$TEMP"
 while true ; do
     case $1 in
-        -r|--restore)
-            restore_session=$2
+        -s|--session)
+            session=$2
             [[ ! -z $2 && ! $2 = "--" ]] && shift 1
-            RESTORE=1
             shift 1
             ;;
-        -s|--save)
-            save_session=$2
-            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
-            SAVE=1
-            shift 1
-            ;;
-        -w|--wait)
-            WAIT=1; shift 1 ;;
+        -w|--kill)
+            if [ "$ACTION" != save ]; then
+                echo "Invalid flag for action $ACTION" >&2
+                exit 1
+            fi
+            KILL=1; shift 1 ;;
+        -d|--delete)
+            if [ "$ACTION" != restore ]; then
+                echo "Invalid flag for action $ACTION" >&2
+                exit 1
+            fi
+            DELETE=1; shift 1 ;;
         -v|--verbose)
             VERBOSE=1; shift 1 ;;
-        -t|--set)
-            select_session=$2
-            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
-            SET=1
-            shift 1
-            ;;
-        -d|--delete)
-            delete_session=$2
-            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
-            DELETE=1
-            shift 1
-            ;;
         --) shift 1 ; break ;;
         *) echo "Invalid argument: $1" ; usage ; exit 1 ;;
     esac
 done
 
-function ver_echo {
+function _echo {
     [[ $VERBOSE -eq 0 ]] && return 0
     echo $@
 }
 
-echo $OUTPUT
-
-if [ $SAVE -eq 1 ]; then
-    ver_echo "Saving session $save_session"
-    set_session $save_session
+if [ "$ACTION" = save ]; then
+    _echo "Saving session $session"
+    set_session $session
 
     echo "" > $session_file
     for pid in $(find_uzbl_instances); do
         # TODO: change to $uzbl_fifo_dir
-        echo "spawn ${PWD}/session-client.sh" > /tmp/uzbl_fifo_$pid
+        echo "sh 'echo \$UZBL_URI >> $session_file'" \
+            > /tmp/uzbl_fifo_$pid
     done
+    [[ $KILL -eq 1 ]] && ACTION=kill
 fi
 
-if [ $WAIT -eq 1 ]; then
-    ver_echo "Waiting for all uzbl instances to terminate..."
-    while [ -n "$(find_uzbl_instances)" ]; do sleep 1; done
-    killall uzbl-event-manager
+if [ "$ACTION" = kill ]; then
+    _echo "Signalling all uzbl instances to terminate"
+
+    for pid in $(find_uzbl_instances); do
+        echo "exit" > /tmp/uzbl_fifo_$pid
+        while kill -0 $pid 2>/dev/null; do sleep 0; done
+    done
+
+    # killall uzbl-event-manager
+    rm $session_file
 fi
 
-if [ $RESTORE -eq 1 ]; then
-    ver_echo "Restoring session $save_session"
-    set_session $restore_session
+if [ "$ACTION" = restore ]; then
+    _echo "Restoring session $session"
+    set_session $session
 
     while read url; do
         [[ -z $url ]] || $session_browser $url &
     done < $session_file
+    [[ $DELETE -eq 1 ]] && ACTION=delete
 fi
 
-if [ $SET -eq 1 ]; then
-    ver_echo "Setting session $select_session"
-    set_session $select_session
-fi
-
-if [ $DELETE -eq 1 ]; then
-    ver_echo "Deleting session $delete_session"
-    # set_session $delete_session
-    # rm 
+if [ "$ACTION" = delete ]; then
+    _echo "Deleting session $session"
 fi

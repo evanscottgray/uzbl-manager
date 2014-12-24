@@ -1,14 +1,13 @@
 #! /bin/bash
 
-source ${XDG_DATA_HOME:-$HOME/.local/share}/uzbl/scripts/session-manager/session_defines
+uzbl_dir=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl
 
 action=$(echo -e "restore\nsave\nset" | dmenu -l 50)
 [[ -z $action ]] && { echo "No action chosen" >&2; exit 1; }
 session=$(cat \
-    <([[ -e $session_file ]] && echo "current") \
     <(echo "new") \
-    <(find $session_dir -type f | xargs -I{} -n 1 basename {}) \
+    <(find $uzbl_dir/sessions/ -type f | xargs -I{} -n 1 basename {}) \
     | dmenu -l 50 -p "Which session?")
 [[ -z $session ]] && { echo "No session chosen" >&2; exit 1; }
 
-${script_dir}/uzbl-session --$action $session
+${uzbl_dir}/scripts/session-manager/uzbl-session --$action $session
