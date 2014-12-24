@@ -1,0 +1,145 @@
+#! /bin/bash
+
+function usage {
+    echo "Usage: uzbl-session COMMAND [NAME]
+Control the current uzbl session.
+
+  -r, --restore     Restore the session NAME or the current session
+  -s, --save        Save the session to session NAME or the current session
+  -w, --wait        Wait for all browser instances to terminate
+  -t, --set         Select a session to use as the current one
+  -d, --delete      Delete a session
+  -v, --verbose     Enable verbose output
+  -h, --help        display this help and exit"
+}
+
+source ${XDG_DATA_HOME:-$HOME/.local/share}/uzbl/scripts/session-manager/session_defines
+
+# If session file isn't a symlink, back it up
+if [ -f $session_file ] && [ ! -h $session_file ]; then
+    mv $session_file \
+        $session_dir/uzbl_session_$(\
+        date --date "@$(stat -c %Y $session_file)" +%Y-%m-%d-%H:%M)
+    if [ $? != 0 ]; then
+        echo "Error: current session file could be lost" >&2
+        exit 1
+    fi
+fi
+
+function set_session {
+    echo "Choosing $1" >&2
+    case $1 in
+        ''|'--')
+            echo "No session chosen; choosing current" >&2
+            return 1
+            ;;
+        new)
+            touch $session_dir/uzbl_session_$(date +%Y-%m-%d-%H:%M)
+            [[ -e $session_file ]] && unlink $session_file
+            ln -s $session_dir/uzbl_session_$(date +%Y-%m-%d-%H:%M) \
+                $session_file >&2
+            return 0
+            ;;
+        current)
+            return 0
+            ;;
+        *)
+            touch $session_dir/$1
+            [[ -e $session_file ]] && unlink $session_file
+            ln -s $session_dir/$1 $session_file >&2
+            return 0
+            ;;
+    esac
+}
+
+function find_uzbl_instances {
+    pgrep uzbl-core
+}
+
+SAVE=0
+RESTORE=0
+WAIT=0
+SET=0
+DELETE=0
+VERBOSE=0
+
+TEMP=$( getopt -o r:s:t:wvh -l restore:,save:,set:,wait,verbose,help -n 'uzbl-session' -- "$@" )
+eval set -- "$TEMP"
+while true ; do
+    case $1 in
+        -r|--restore)
+            restore_session=$2
+            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
+            RESTORE=1
+            shift 1
+            ;;
+        -s|--save)
+            save_session=$2
+            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
+            SAVE=1
+            shift 1
+            ;;
+        -w|--wait)
+            WAIT=1; shift 1 ;;
+        -v|--verbose)
+            VERBOSE=1; shift 1 ;;
+        -t|--set)
+            select_session=$2
+            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
+            SET=1
+            shift 1
+            ;;
+        -d|--delete)
+            delete_session=$2
+            [[ ! -z $2 && ! $2 = "--" ]] && shift 1
+            DELETE=1
+            shift 1
+            ;;
+        --) shift 1 ; break ;;
+        *) echo "Invalid argument: $1" ; usage ; exit 1 ;;
+    esac
+done
+
+function ver_echo {
+    [[ $VERBOSE -eq 0 ]] && return 0
+    echo $@
+}
+
+echo $OUTPUT
+
+if [ $SAVE -eq 1 ]; then
+    ver_echo "Saving session $save_session"
+    set_session $save_session
+
+    echo "" > $session_file
+    for pid in $(find_uzbl_instances); do
+        # TODO: change to $uzbl_fifo_dir
+        echo "spawn ${PWD}/session-client.sh" > /tmp/uzbl_fifo_$pid
+    done
+fi
+
+if [ $WAIT -eq 1 ]; then
+    ver_echo "Waiting for all uzbl instances to terminate..."
+    while [ -n "$(find_uzbl_instances)" ]; do sleep 1; done
+    killall uzbl-event-manager
+fi
+
+if [ $RESTORE -eq 1 ]; then
+    ver_echo "Restoring session $save_session"
+    set_session $restore_session
+
+    while read url; do
+        [[ -z $url ]] || $session_browser $url &
+    done < $session_file
+fi
+
+if [ $SET -eq 1 ]; then
+    ver_echo "Setting session $select_session"
+    set_session $select_session
+fi
+
+if [ $DELETE -eq 1 ]; then
+    ver_echo "Deleting session $delete_session"
+    # set_session $delete_session
+    # rm 
+fi

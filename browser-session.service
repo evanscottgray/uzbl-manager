@@ -1,0 +1,12 @@
+[Unit]
+Description=Save the browser session before exiting
+
+[Service]
+Type=oneshot
+User=%I
+RemainAfterExit=true
+ExecStart=/bin/true
+ExecStop=browser-session --save
+
+[Install]
+WantedBy=multi-user.target
