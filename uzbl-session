@@ -1,0 +1,53 @@
+#! /bin/bash
+
+function usage {
+    echo "Usage: uzbl-session COMMAND [OPTIONS]
+Client for uzbl-session-manager
+
+Commands:
+  spawn             Start a new browser window
+  save              Save the current session or create a new one
+  restore           Restore a previous session
+  delete            Delete a session
+  kill              Kill the current session
+
+Options:
+  -s, --session     Name a session on which to operate
+  -v, --verbose     Enable verbose output
+  -h, --help        display this help and exit"
+}
+
+WRITE_FIFO=/tmp/uzbl_session_fifo
+
+if [[ $1 =~ ^- ]]; then
+    ACTION=""
+else
+    ACTION=$1; shift 1
+fi
+
+VERBOSE=1
+TEMP=$( getopt -o s:vh -l session:,verbose,help -n 'uzbl-session-manager' -- "$@" )
+eval set -- "$TEMP"
+while true ; do
+    case $1 in
+        -s|--session)
+            SESSION=$2; shift 2 ;;
+        -v|--verbose)
+            VERBOSE=1; shift 1 ;;
+        -h|--help)
+            usage ; exit 0 ; shift 1;;
+        --) shift 1 ; break ;;
+        *) echo "Invalid argument: $1" ; usage ; exit 1 ;;
+    esac
+done
+
+[[ -z $ACTION ]] && { echo "No command specified" >&2 ; usage ; exit 1 ; }
+
+case $ACTION in
+    spawn)      echo "spawn" > $WRITE_FIFO ;;
+    save)       echo "save $SESSION" > $WRITE_FIFO ;;
+    restore)    echo "restore $SESSION" > $WRITE_FIFO ;;
+    delete)     echo "delete $SESSION" > $WRITE_FIFO ;;
+    kill)       echo "kill" > $WRITE_FIFO ;;
+    *)          echo "Invalid command $ACTION" >&2 ; exit 1 ;;
+esac

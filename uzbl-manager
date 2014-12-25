@@ -12,10 +12,10 @@ Startup options:
 SESSION_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl/sessions/
 READ_FIFO=/tmp/uzbl_session_fifo
 EVENT_SOCK=/tmp/uzbl_event_manager.sock
-BROWSER="uzbl-browser --connect-socket=$EVENT_SOCK -u"
+BROWSER="uzbl-core --connect-socket=$EVENT_SOCK"
 CURRENT_SESSION=""
 
-VERBOSE=0
+VERBOSE=1
 TEMP=$( getopt -o vh -l verbose,help -n 'uzbl-session-manager' -- "$@" )
 eval set -- "$TEMP"
 while true ; do
@@ -35,7 +35,7 @@ fi
 
 [[ $VERBOSE -eq 1 ]] && verbosity=--verbose
 uzbl-event-manager --no-daemon $verbosity \
-    --quiet-events --server-socket=$EVENT_SOCK &
+    --quiet-events --server-socket=$EVENT_SOCK start &
 UZBL_EVENT_MANAGER_PID=$!
 
 # Prepare exit handler
@@ -43,7 +43,6 @@ function on_exit {
     rm -f $READ_FIFO
     session_save
     session_kill
-    kill $UZBL_EVENT_MANAGER_PID
 }
 trap on_exit EXIT
 
@@ -93,9 +92,13 @@ function session_restore {
         _error "No such session $session"
     else
         while read url; do
-            [[ -z $url ]] || $BROWSER $url &
+            [[ -z $url ]] || $BROWSER -u $url >/dev/null 2>&1 &
         done < $SESSION_DIR/$session
     fi
+}
+
+function session_spawn {
+    $BROWSER >/dev/null 2>&1 &
 }
 
 function session_delete {
@@ -118,16 +121,18 @@ function session_kill {
 while true; do
     ACTION=""; SESSION=""
     while read cmd; do
+        _echo "Recieved command $cmd"
         ACTION=$(echo $cmd | cut -f1 -d' ')
         SESSION=$(echo $cmd | cut -f2 -d' ')
         [[ -z $ACTION ]] || [[ -z $SESSION ]] && ACTION=invalid
         case $ACTION in
+            spawn) session_spawn ;;
             save)
                 _echo "Saving session $session"
                 CURRENT_SESSION=$( session_save $SESSION )
                 ;;
             restore)
-                _echo "Restoring session $session"
+                _echo "Restoring session $SESSION"
                 CURRENT_SESSION=$( session_restore $SESSION )
                 ;;
             delete)
@@ -142,7 +147,7 @@ while true; do
                 _echo "Exiting"
                 break
                 ;;
-            *)  _error "Invalid command $cmd" ;;
+           *)  _error "Invalid command $cmd" ;;
         esac
     done < $READ_FIFO
     [[ $ACTION = exit ]] && break

@@ -1,22 +1,26 @@
 
-SERVICE_DIR=/etc/systemd/system
-SERVICES=$(patsubst browser-session@%.service,$(SERVICE_DIR)/browser-session@%.service,$(wildcard browser-session@*.service))
+SERVICE_FILE=/etc/systemd/user/uzbl-manager.service
 
 all:
-	cp browser-session.service browser-session@$(shell whoami).service
+	@echo > /dev/null
 
-$(SERVICE_DIR)/browser-session@%.service: browser-session@%.service executable
+$(SERVICE_FILE): uzbl-manager.service service
 	cp $< $@
 
-@PHONY: executable
-executable: uzbl-session-manager
+@PHONY: service
+service: uzbl-manager
 	cp $< $(DESTDIR)/usr/local/bin
 
-install: executable $(SERVICES)
+@PHONY: client
+client: uzbl-session
+	cp $< $(DESTDIR)/usr/local/bin
+
+install: service $(SERVICE_FILE) client
 
 uninstall:
-	rm -f $(DESTDIR)/usr/local/bin/uzbl-session-manager
-	rm -f $(SERVICE_DIR)/browser-session@*.service
+	rm -f $(DESTDIR)/usr/local/bin/uzbl-manager
+	rm -f $(DESTDIR)/usr/local/bin/uzbl-session
+	rm -f $(SERVICE_FILE)
 
 clean:
-	rm -f browser-session@*.service
+	@echo > /dev/null
