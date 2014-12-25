@@ -2,11 +2,9 @@
 Description=Save the browser session before exiting
 
 [Service]
-Type=oneshot
+Type=simple
 User=%I
-RemainAfterExit=true
-ExecStart=/bin/true
-ExecStop=browser-session --save
+ExecStart=/usr/local/bin/uzbl-session-manager
 
 [Install]
 WantedBy=multi-user.target

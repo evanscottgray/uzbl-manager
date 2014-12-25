@@ -1,0 +1,151 @@
+#! /bin/bash
+
+function usage {
+    echo "Usage: uzbl-session-manager [OPTIONS]
+Service to manage uzbl session
+
+Startup options:
+  -v, --verbose     Enable verbose output
+  -h, --help        display this help and exit"
+}
+
+SESSION_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl/sessions/
+READ_FIFO=/tmp/uzbl_session_fifo
+EVENT_SOCK=/tmp/uzbl_event_manager.sock
+BROWSER="uzbl-browser --connect-socket=$EVENT_SOCK -u"
+CURRENT_SESSION=""
+
+VERBOSE=0
+TEMP=$( getopt -o vh -l verbose,help -n 'uzbl-session-manager' -- "$@" )
+eval set -- "$TEMP"
+while true ; do
+    case $1 in
+        -v|--verbose)
+            VERBOSE=1; shift 1 ;;
+        --) shift 1 ; break ;;
+        *) echo "Invalid argument: $1" ; usage ; exit 1 ;;
+    esac
+done
+
+# Perform initlialization
+if [[ ! -p $READ_FIFO ]]; then
+    rm -f $READ_FIFO
+    mkfifo $READ_FIFO
+fi
+
+[[ $VERBOSE -eq 1 ]] && verbosity=--verbose
+uzbl-event-manager --no-daemon $verbosity \
+    --quiet-events --server-socket=$EVENT_SOCK &
+UZBL_EVENT_MANAGER_PID=$!
+
+# Prepare exit handler
+function on_exit {
+    rm -f $READ_FIFO
+    session_save
+    session_kill
+    kill $UZBL_EVENT_MANAGER_PID
+}
+trap on_exit EXIT
+
+function _echo {
+    [[ $VERBOSE -eq 0 ]] && return 0
+    echo $@
+}
+
+function _error {
+    echo $@ >&2
+}
+
+function get_session {
+    session=$CURRENT_SESSION
+    case $1 in
+        ''|'--')    _error "No session chosen; choosing current" ;;
+        current)    ;;
+        new)        session="" ;;
+        *)          session=$1 ;;
+    esac
+    [[ -z $session ]] && session=uzbl_session_$(date +%Y-%m-%d-%H:%M)
+    echo $session
+}
+
+function find_uzbl_instances {
+    pgrep uzbl-core
+}
+
+function session_save {
+    session=$( get_session $1 )
+
+    rm $SESSION_DIR/$session > /dev/null 2>&1
+    touch $SESSION_DIR/$session
+
+    for pid in $(find_uzbl_instances); do
+        # TODO: change to $uzbl_fifo_dir
+        echo "sh 'echo \$UZBL_URI >> $SESSION_DIR/$session'" \
+            > /tmp/uzbl_fifo_$pid
+    done
+
+    echo $session
+}
+
+function session_restore {
+    session=$( get_session $1 )
+    if [ ! -f $SESSION_DIR/$session ]; then
+        _error "No such session $session"
+    else
+        while read url; do
+            [[ -z $url ]] || $BROWSER $url &
+        done < $SESSION_DIR/$session
+    fi
+}
+
+function session_delete {
+    session=$( get_session $1 )
+    rm $SESSION_DIR/$session || \
+        _error "Could not remove session $session"
+    [[ $1 = $2 ]] && echo $2 || echo $1
+}
+
+function session_kill {
+    for pid in $(find_uzbl_instances); do
+        echo "exit" > /tmp/uzbl_fifo_$pid
+        for count in {1..10000}; do
+            kill -0 $pid 2>/dev/null || break
+        done
+        [[ $count -eq 10000 ]] && kill -SIGTERM $pid
+    done
+}
+
+while true; do
+    ACTION=""; SESSION=""
+    while read cmd; do
+        ACTION=$(echo $cmd | cut -f1 -d' ')
+        SESSION=$(echo $cmd | cut -f2 -d' ')
+        [[ -z $ACTION ]] || [[ -z $SESSION ]] && ACTION=invalid
+        case $ACTION in
+            save)
+                _echo "Saving session $session"
+                CURRENT_SESSION=$( session_save $SESSION )
+                ;;
+            restore)
+                _echo "Restoring session $session"
+                CURRENT_SESSION=$( session_restore $SESSION )
+                ;;
+            delete)
+                _echo "Deleting session $session"
+                CURRENT_SESSION=$( session_delete $session $CURRENT_SESSION )
+                ;;
+            kill)
+                _echo "Signalling all uzbl instances to terminate"
+                session_kill
+                ;;
+            exit)
+                _echo "Exiting"
+                break
+                ;;
+            *)  _error "Invalid command $cmd" ;;
+        esac
+    done < $READ_FIFO
+    [[ $ACTION = exit ]] && break
+done
+# Call exit handler
+on_exit

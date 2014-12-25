@@ -1,31 +1,22 @@
 
-XDG_DATA_HOME ?= $(HOME)/.local/share
-SCRIPT_DIR=${XDG_DATA_HOME}/uzbl/scripts/session-manager
-ifeq ($(strip $(DESTDIR)),)
-	EXECUTABLE=/usr/local/bin/browser-session
-else
-	EXECUTABLE=$(DESTDIR)/bin/browser-session
-endif
-SERVICE=/lib/systemd/system/browser-session@$(shell whoami).service
+SERVICE_DIR=/etc/systemd/system
+SERVICES=$(patsubst browser-session@%.service,$(SERVICE_DIR)/browser-session@%.service,$(wildcard browser-session@*.service))
 
 all:
-	@echo > /dev/null
+	cp browser-session.service browser-session@$(shell whoami).service
 
-${SCRIPT_DIR}: session_defines session-client.sh uzbl-session uzbl-session-dmenu browser-session.service
-	mkdir -p ${SCRIPT_DIR} >/dev/null 2>&1
-	cp ${^} ${SCRIPT_DIR}
+$(SERVICE_DIR)/browser-session@%.service: browser-session@%.service executable
+	cp $< $@
 
-${SERVICE}: browser-session.service ${EXECUTABLE}
-	-sudo rm $@
-	sudo cp $< $@
+@PHONY: executable
+executable: uzbl-session-manager
+	cp $< $(DESTDIR)/usr/local/bin
 
-${EXECUTABLE}: uzbl-session-dmenu
-	-unlink $@
-	ln -s ${SCRIPT_DIR}/$^ $@
-
-install: ${SCRIPT_DIR} ${SERVICE}
+install: executable $(SERVICES)
 
 uninstall:
-	rm ${EXECUTABLE}
-	sudo rm ${SERVICE}
-	rm -rf ${SCRIPT_DIR}
+	rm -f $(DESTDIR)/usr/local/bin/uzbl-session-manager
+	rm -f $(SERVICE_DIR)/browser-session@*.service
+
+clean:
+	rm -f browser-session@*.service
