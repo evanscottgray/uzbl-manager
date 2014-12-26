@@ -39,3 +39,13 @@ Configuration
 -------------
 
 Edit the script. It's really simple, all the important stuff is up top.
+
+To Do
+-----
+
+1. Apparently, some scripts/environment variables are configured in uzbl-browser
+which aren't in uzbl-manager. Consider modifying uzbl-manager to be uzbl-browser
+compatible, e.g., use the same socket directory.
+2. Start the daemon via the client.
+3. Test that the timer works.
+4. Make it work on shutdown, which was the whole point in the first place.
