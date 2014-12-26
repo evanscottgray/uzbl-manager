@@ -1,8 +1,8 @@
 [Unit]
 Description=uzbl session save
-After=uzbl-manager@<user>.service
-Wants=uzbl-session@<user>.timer
-PartOf=uzbl-manager@<user>.service
+After=uzbl-manager@.service
+Wants=uzbl-session@.timer
+PartOf=uzbl-manager@.service
 
 [Service]
 Type=oneshot
