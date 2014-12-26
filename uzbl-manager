@@ -15,7 +15,13 @@ EVENT_SOCK=/tmp/uzbl_event_manager.sock
 BROWSER="uzbl-core --connect-socket=$EVENT_SOCK"
 CURRENT_SESSION=""
 
-VERBOSE=1
+function find_uzbl_instances {
+    pgrep uzbl-core
+    return $?
+}
+
+
+VERBOSE=0
 TEMP=$( getopt -o vh -l verbose,help -n 'uzbl-session-manager' -- "$@" )
 eval set -- "$TEMP"
 while true ; do
@@ -35,14 +41,22 @@ fi
 
 [[ $VERBOSE -eq 1 ]] && verbosity=--verbose
 uzbl-event-manager --no-daemon $verbosity \
-    --quiet-events --server-socket=$EVENT_SOCK start &
-UZBL_EVENT_MANAGER_PID=$!
+    --quiet-events --server-socket=$EVENT_SOCK start & disown
 
 # Prepare exit handler
 function on_exit {
+    if find_uzbl_instances > /dev/null; then
+        session_save > /dev/null
+        session_kill > /dev/null
+    else
+        _echo "No instances; not saving session"
+    fi
+    # Kill the event manager if it's still running
+    [[ -f $EVENT_SOCK.pid ]] && kill $(cat $EVENT_SOCK.pid)
+    # Signal that the daemon has exited
     rm -f $READ_FIFO
-    session_save
-    session_kill
+    _echo "Exiting..."
+    exit 0
 }
 trap on_exit EXIT
 
@@ -67,8 +81,8 @@ function get_session {
     echo $session
 }
 
-function find_uzbl_instances {
-    pgrep uzbl-core
+function session_spawn {
+    $BROWSER $@ >/dev/null 2>&1 & disown
 }
 
 function session_save {
@@ -79,7 +93,7 @@ function session_save {
 
     for pid in $(find_uzbl_instances); do
         # TODO: change to $uzbl_fifo_dir
-        echo "sh 'echo \$UZBL_URI >> $SESSION_DIR/$session'" \
+        echo "sync_sh 'echo \$UZBL_URI >> $SESSION_DIR/$session'" \
             > /tmp/uzbl_fifo_$pid
     done
 
@@ -92,13 +106,11 @@ function session_restore {
         _error "No such session $session"
     else
         while read url; do
-            [[ -z $url ]] || $BROWSER -u $url >/dev/null 2>&1 &
+            [[ -z $url ]] || session_spawn -u $url
         done < $SESSION_DIR/$session
     fi
-}
 
-function session_spawn {
-    $BROWSER >/dev/null 2>&1 &
+    echo $session
 }
 
 function session_delete {
@@ -121,35 +133,38 @@ function session_kill {
 while true; do
     ACTION=""; SESSION=""
     while read cmd; do
-        _echo "Recieved command $cmd"
-        ACTION=$(echo $cmd | cut -f1 -d' ')
-        SESSION=$(echo $cmd | cut -f2 -d' ')
-        [[ -z $ACTION ]] || [[ -z $SESSION ]] && ACTION=invalid
+        ACTION=$(echo $cmd | awk '{print $1}')
+        SESSION=$(echo $cmd | awk '{print $2}')
+        [[ -z $ACTION ]] && ACTION=invalid
         case $ACTION in
             spawn) session_spawn ;;
             save)
-                _echo "Saving session $session"
+                _echo -n "Saving session $SESSION... "
                 CURRENT_SESSION=$( session_save $SESSION )
+                _echo "saved"
                 ;;
             restore)
-                _echo "Restoring session $SESSION"
+                _echo -n "Restoring session $SESSION... "
                 CURRENT_SESSION=$( session_restore $SESSION )
+                _echo "restored"
                 ;;
             delete)
-                _echo "Deleting session $session"
-                CURRENT_SESSION=$( session_delete $session $CURRENT_SESSION )
+                _echo -n "Deleting session $SESSION... "
+                CURRENT_SESSION=$( session_delete $SESSION $CURRENT_SESSION )
+                _echo "deleted"
                 ;;
             kill)
-                _echo "Signalling all uzbl instances to terminate"
+                _echo "Signalling all uzbl instances to terminate... "
                 session_kill
+                _echo "all instances terminated"
                 ;;
             exit)
-                _echo "Exiting"
                 break
                 ;;
            *)  _error "Invalid command $cmd" ;;
         esac
     done < $READ_FIFO
+    _echo "Current session: $CURRENT_SESSION"
     [[ $ACTION = exit ]] && break
 done
 # Call exit handler

@@ -10,6 +10,7 @@ Commands:
   restore           Restore a previous session
   delete            Delete a session
   kill              Kill the current session
+  stop              Kill the current session and stop the daemon
 
 Options:
   -s, --session     Name a session on which to operate
@@ -49,5 +50,6 @@ case $ACTION in
     restore)    echo "restore $SESSION" > $WRITE_FIFO ;;
     delete)     echo "delete $SESSION" > $WRITE_FIFO ;;
     kill)       echo "kill" > $WRITE_FIFO ;;
+    stop)       echo "exit" > $WRITE_FIFO ; while [ -p $WRITE_FIFO ]; do sleep 0; done ;;
     *)          echo "Invalid command $ACTION" >&2 ; exit 1 ;;
 esac

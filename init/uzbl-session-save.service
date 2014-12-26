@@ -1,0 +1,12 @@
+[Unit]
+Description=uzbl session save
+After=uzbl-manager@<user>.service
+Wants=uzbl-session@<user>.timer
+PartOf=uzbl-manager@<user>.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/uzbl-session save
+
+[Install]
+WantedBy=default.target

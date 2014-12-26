@@ -2,8 +2,13 @@
 
 uzbl_dir=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl
 
-action=$(echo -e "restore\nsave\nkill" | dmenu -l 50)
+action=$(echo -e "restore\nsave\nexit" | dmenu -l 50)
 [[ -z $action ]] && { echo "No action chosen" >&2; exit 1; }
+if [ $action = exit ]; then
+    uzbl-session save
+    uzbl-session kill
+    exit
+fi
 
 session=$(cat \
     <(echo "new") \
