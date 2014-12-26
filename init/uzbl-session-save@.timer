@@ -3,4 +3,5 @@ Description=uzbl session autosave
 PartOf=uzbl-manager@.service uzbl-session-save@.service
 
 [Timer]
+Unit=uzbl-session-save@.service
 OnUnitActiveSec=3min

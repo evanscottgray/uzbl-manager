@@ -49,3 +49,4 @@ compatible, e.g., use the same socket directory.
 2. Start the daemon via the client.
 3. Test that the timer works.
 4. Make it work on shutdown, which was the whole point in the first place.
+5. Don't start the windows with -u; the URI appears as part of the process name.
