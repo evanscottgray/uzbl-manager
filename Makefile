@@ -5,11 +5,11 @@ all:
 
 @PHONY: install
 install:
-	cp $< $(DESTDIR)/usr/local/bin
-	cp $< $(DESTDIR)/usr/local/bin
+	cp uzbl-session $(DESTDIR)/usr/local/bin
+	cp uzbl-manager $(DESTDIR)/usr/local/bin
 	cp init/uzbl-manager@.service $(SERVICE_PATH)
 	cp init/uzbl-session-save@.service $(SERVICE_PATH)
-	cp init/uzbl-session@.timer $(SERVICE_PATH)
+	cp init/uzbl-session-save@.timer $(SERVICE_PATH)
 
 @PHONY: uninstall
 uninstall:
