@@ -3,10 +3,9 @@ Description=uzbl session manager
 
 [Service]
 Type=simple
-User=%I
 Environment=DISPLAY=:0
 ExecStart=/usr/local/bin/uzbl-manager
 ExecStop=/usr/local/bin/uzbl-session stop
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=uzbl session autosave
+
+[Timer]
+OnUnitActiveSec=3min
+
+[Install]
+WantedBy=timers.target
