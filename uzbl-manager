@@ -96,10 +96,10 @@ function session_save {
 
     if pids=$(find_uzbl_instances); then
         touch $SESSION_DIR/$session
-        echo $pids | while read pid; do
+        echo "$pids" | while read pid; do
             # TODO: change to $uzbl_fifo_dir
             echo "sync_sh 'echo \$UZBL_URI >> $SESSION_DIR/$session'" \
-                > /tmp/uzbl_fifo_$pid
+                > /tmp/uzbl_fifo_"$pid"
         done
     else
         session=""
