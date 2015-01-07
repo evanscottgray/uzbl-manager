@@ -18,10 +18,16 @@ READ_FIFO=/tmp/uzbl_session_fifo
 EVENT_SOCK=$XDG_CACHE_HOME/uzbl/event_daemon
 BROWSER="uzbl-browser"
 CURRENT_SESSION=""
+CURRENT_SESSION_FILE=$XDG_DATA_HOME/uzbl/.session
 
 function find_uzbl_instances {
     pgrep uzbl-core
     return $?
+}
+
+function update_current_session {
+    CURRENT_SESSION=$1
+    echo $1 > $CURRENT_SESSION_FILE
 }
 
 
@@ -148,17 +154,17 @@ while true; do
             spawn) session_spawn ;;
             save)
                 _echo -n "Saving session $SESSION... "
-                CURRENT_SESSION=$( session_save $SESSION )
+                update_current_session $( session_save $SESSION )
                 _echo "saved"
                 ;;
             restore)
                 _echo -n "Restoring session $SESSION... "
-                CURRENT_SESSION=$( session_restore $SESSION )
+                update_current_session $( session_restore $SESSION )
                 _echo "restored"
                 ;;
             delete)
                 _echo -n "Deleting session $SESSION... "
-                CURRENT_SESSION=$( session_delete $SESSION $CURRENT_SESSION )
+                update_current_session $( session_delete $SESSION $CURRENT_SESSION )
                 _echo "deleted"
                 ;;
             kill)

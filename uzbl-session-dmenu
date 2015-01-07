@@ -5,22 +5,31 @@ uzbl_dir=${XDG_DATA_HOME:-$HOME/.local/share}/uzbl
 function choose_session {
     cat \
         <(echo "new") \
-        <(find $uzbl_dir/sessions/ -type f | xargs -I{} -n 1 basename {}) \
-        | dmenu -l 50 -p "Which session?"
-    [[ -z $session ]] && { echo "No session chosen" >&2; exit 2; }
+        <(find $uzbl_dir/sessions/ -type f -printf '%P\n') \
+        | dmenu -p "Which session?"
 }
 
-action=$(echo -e "switch\nrestore\nsave\nnew\nexit" | dmenu -l 50)
+action=$(echo -e "switch\nrename\nrestore\nsave\nnew\nexit" | dmenu -p "$(cat $uzbl_dir/.session)")
+action=${action//$'\n'}
 
 case $action in
     switch)
         session=$(choose_session)
+        [[ -z $session ]] && { echo "No session chosen" >&2; exit 2; }
         uzbl-session save
         uzbl-session kill
         uzbl-session restore -s $session
         ;;
+    rename)
+        session=$(choose_session)
+        [[ -z $session ]] && { echo "No session chosen" >&2; exit 2; }
+        uzbl-session delete
+        uzbl-session save -s $session
+        ;;
     restore)
         session=$(choose_session)
+        [[ -z $session ]] && { echo "No session chosen" >&2; exit 2; }
+        echo $session
         uzbl-session restore -s $session
         ;;
     save)
@@ -28,6 +37,7 @@ case $action in
         ;;
     new)
         session=$(choose_session)
+        [[ -z $session ]] && { echo "No session chosen" >&2; exit 2; }
         uzbl-session save -s $session
         uzbl-session spawn
         ;;
