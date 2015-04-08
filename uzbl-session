@@ -9,6 +9,8 @@ Commands:
   save              Save the current session or create a new one
   restore           Restore a previous session
   delete            Delete a session
+  list              List all sessions
+  show              Show all pages in a session
   kill              Kill the current session
   stop              Kill the current session and stop the daemon
 
@@ -18,6 +20,7 @@ Options:
   -h, --help        display this help and exit"
 }
 
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
 WRITE_FIFO=/tmp/uzbl_session_fifo
 
 if [[ $1 =~ ^- ]]; then
@@ -49,6 +52,8 @@ case $ACTION in
     save)       echo "save $SESSION" > $WRITE_FIFO ;;
     restore)    echo "restore $SESSION" > $WRITE_FIFO ;;
     delete)     echo "delete $SESSION" > $WRITE_FIFO ;;
+    list)       ls $XDG_DATA_HOME/uzbl/sessions ;;
+    show)       cat $XDG_DATA_HOME/uzbl/sessions/$SESSION ;;
     kill)       echo "kill" > $WRITE_FIFO ;;
     stop)       echo "exit" > $WRITE_FIFO ; while [ -p $WRITE_FIFO ]; do sleep 0; done ;;
     *)          echo "Invalid command $ACTION" >&2 ; exit 1 ;;

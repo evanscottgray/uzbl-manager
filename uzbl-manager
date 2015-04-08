@@ -170,6 +170,7 @@ while true; do
             kill)
                 _echo "Signalling all uzbl instances to terminate... "
                 session_kill
+                update_current_session
                 _echo "all instances terminated"
                 ;;
             exit)
